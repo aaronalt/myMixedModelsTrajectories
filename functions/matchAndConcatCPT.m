@@ -44,8 +44,11 @@ sFields = fieldnames(sorted);
 if nargin < 3 || isempty(subjField)
     idx = find(cellfun(@(f) ~isempty(regexpi(f,'subj')), sFields));
     if isempty(idx)
+        idx = find(cellfun(@(f) ~isempty(regexp(f,'^ID$','ignorecase')), sFields));
+    end
+    if isempty(idx)
         error('matchAndConcatCPT:noSubjField', ...
-            'No field containing ''subj'' found in sorted. Available: %s', ...
+            'No subject ID field found in sorted. Available: %s', ...
             strjoin(sFields, ', '));
     end
     subjField = sFields{idx(1)};
@@ -65,8 +68,12 @@ end
 if nargin < 5 || isempty(cptSubjField)
     idx = find(cellfun(@(f) ~isempty(regexpi(f,'subj')), cptFields));
     if isempty(idx)
+        % fall back to a field named 'ID' (case-insensitive exact match)
+        idx = find(cellfun(@(f) ~isempty(regexp(f,'^ID$','ignorecase')), cptFields));
+    end
+    if isempty(idx)
         error('matchAndConcatCPT:noCptSubj', ...
-            'No variable containing ''subj'' found in %s. Available: %s', ...
+            'No subject ID variable found in %s. Available: %s', ...
             cptMatFile, strjoin(cptFields, ', '));
     end
     cptSubjField = cptFields{idx(1)};
