@@ -76,7 +76,17 @@ end
 % Claustrum volumes (columns 1=LH, 2=RH from matched imaging data)
 clau = mX(:, 1:2);
 
-fprintf('\n%d matched observations from %d subjects.\n', ...
+% Filter: keep only observations with age < 35
+ageKeep = mCPT.AGE < 35;
+fprintf('\nAge filter (< 35): keeping %d of %d observations.\n', sum(ageKeep), nObs);
+mCPT.ID     = mCPT.ID(ageKeep);
+mCPT.AGE    = mCPT.AGE(ageKeep);
+mCPT.DIAG   = mCPT.DIAG(ageKeep);
+scoreData   = scoreData(ageKeep, :);
+clau        = clau(ageKeep, :);
+nObs        = sum(ageKeep);
+
+fprintf('%d observations from %d subjects after filtering.\n', ...
     nObs, length(unique(mCPT.ID)));
 
 %% ------------------------------------------------------------------------
