@@ -105,10 +105,47 @@ end
 
 % add covariates if there are any
 if ~isempty(cov)
+    % Main covariate effects
     designMatrix=[designMatrix cov];
-    
     for iC=1:size(cov,2)
         designVars=[designVars; ['Covariate ' num2str(iC)]];
+    end
+
+    % Two-way: Group x Covariate
+    if opts.groupEffect
+        for iC=1:size(cov,2)
+            for i=1:groups-1
+                designMatrix = [designMatrix grouping(:,i).*cov(:,iC)];
+                designVars   = [designVars; sprintf('grouping_%d_by_cov_%d', i, iC)];
+            end
+        end
+    end
+
+    % Two-way: Age x Covariate  &  Three-way: Age x Group x Covariate
+    if opts.mOrder>0
+        for iO = 1:mOrder
+            for iC=1:size(cov,2)
+                % Age^iO x Covariate
+                designMatrix = [designMatrix (age.^iO).*cov(:,iC)];
+                if iO==1
+                    designVars = [designVars; sprintf('age_by_cov_%d', iC)];
+                else
+                    designVars = [designVars; sprintf('age%d_by_cov_%d', iO, iC)];
+                end
+
+                % Age^iO x Group x Covariate (three-way)
+                if opts.interEffect
+                    for i=1:groups-1
+                        designMatrix = [designMatrix (age.^iO).*grouping(:,i).*cov(:,iC)];
+                        if iO==1
+                            designVars = [designVars; sprintf('age_by_grouping_%d_by_cov_%d', i, iC)];
+                        else
+                            designVars = [designVars; sprintf('age%d_by_grouping_%d_by_cov_%d', iO, i, iC)];
+                        end
+                    end
+                end
+            end
+        end
     end
 end
 
