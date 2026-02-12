@@ -124,6 +124,41 @@ saveResults = 2;  % 0=no, 1=table only, 2=table + plots
 plotModelsAndSaveResults(outModelVect_corr, plotOpts, saveResults, outDir);
 
 %% ------------------------------------------------------------------------
+% Scatter plots: summed claustrum volume vs CPT score
+% ------------------------------------------------------------------------
+clauSum = clau(:, 1) + clau(:, 2);   % LH + RH
+diag    = mCPT.DIAG;
+grpIdx0 = diag == 0;
+grpIdx1 = diag == 1;
+colHC   = [0 0 1];
+col22q  = [1 0 0];
+
+scatterDir = fullfile(outDir, 'scatter_clau_vs_cpt');
+if ~exist(scatterDir, 'dir'), mkdir(scatterDir); end
+
+for iS = 1:nScores
+    y = scoreData(:, iS);
+    valid = ~isnan(y) & ~isnan(clauSum);
+
+    fig = figure('Position', [440 488 525 420], 'Visible', 'off');
+    hold on;
+
+    scatter(clauSum(valid & grpIdx0), y(valid & grpIdx0), 40, colHC,  'filled', 'MarkerFaceAlpha', 0.5);
+    scatter(clauSum(valid & grpIdx1), y(valid & grpIdx1), 40, col22q, 'filled', 'MarkerFaceAlpha', 0.5);
+
+    xlabel('Summed Claustrum Volume (LH + RH)');
+    ylabel(scoreCols{iS}, 'Interpreter', 'none');
+    title(sprintf('Claustrum Volume vs %s', scoreCols{iS}), 'Interpreter', 'none');
+    legend({'HC', '22q'}, 'Location', 'best');
+    hold off;
+
+    safeName = regexprep(scoreCols{iS}, '[^a-zA-Z0-9_]', '_');
+    saveas(fig, fullfile(scatterDir, ['scatter_clau_vs_' safeName '.eps']), 'epsc');
+    close(fig);
+end
+fprintf('\nScatter plots saved to %s\n', scatterDir);
+
+%% ------------------------------------------------------------------------
 % Effect sizes
 % ------------------------------------------------------------------------
 effectSizeGroup = GroupCalculationEffect(outModelVect);
