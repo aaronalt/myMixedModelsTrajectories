@@ -51,8 +51,9 @@ startup; % set up some options for nicer plots
 % -----------------------------
 load("/home/aaron/myMixedModelsTrajectories/demographics.mat")
 load("/home/aaron/myMixedModelsTrajectories/clau_brain_vols.mat")
-CPT = readtable('CPT_Tscores.mat');
+load("/home/aaron/myMixedModelsTrajectories/CPT_table_Tscore.mat")
 sorted = sortDemographics(X, 'demographics.mat');
+[mX, mCPT, info] = matchAndConcatCPT(sorted, 'CPT_table_Tscore.mat');
 
 
 % --- 1. ROW FILTERING (Subjects) ---

@@ -140,7 +140,7 @@ for iF = 1:length(cptFields)
     end
 end
 
-matchInfo.subject   = sortedSubj(keepIdx);
+matchInfo.ID   = sortedSubj(keepIdx);
 matchInfo.sortedAge = sortedAge(keepIdx);
 matchInfo.cptAge    = cptAge(keptCptIdx);
 matchInfo.ageDiff   = ageDiffs(keepIdx);
