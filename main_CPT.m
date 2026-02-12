@@ -60,6 +60,19 @@ for iS = 1:nScores
     scoreData(:, iS) = double(mCPT.(scoreCols{iS}));
 end
 
+% Remove outliers (> 3 SD from mean) per score column
+for iS = 1:nScores
+    col = scoreData(:, iS);
+    mu  = nanmean(col);
+    sd  = nanstd(col);
+    outliers = abs(col - mu) > 3 * sd;
+    nOut = sum(outliers);
+    if nOut > 0
+        fprintf('  %s: %d outlier(s) removed\n', scoreCols{iS}, nOut);
+        scoreData(outliers, iS) = NaN;
+    end
+end
+
 % Claustrum volumes (columns 1=LH, 2=RH from matched imaging data)
 clau = mX(:, 1:2);
 
