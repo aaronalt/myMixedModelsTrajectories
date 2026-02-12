@@ -368,17 +368,22 @@ end
 % title
 
 if isfield(plotOpts,'titletext')
-    title(plotOpts.titletext)
+    title(plotOpts.titletext, 'Interpreter', 'none')
 else
-    if ~isfield(model,'groupEffect')
-        title(['model order: ' num2str(model.order)]);
-    elseif model.order
-        title(['model order: ' num2str(model.order) ...
-            ',   p-val group effect: ' num2str(model.groupEffect.p,'%.4f') ...
-            ',   p-val interaction: ' num2str(model.interEffect.p,'%.4f')]);
+    if isfield(model,'mName')
+        scoreName = [model.mName ' — '];
     else
-        title(['model order: ' num2str(model.order) ...
-            ',   p-val group effect: ' num2str(model.groupEffect.p,'%.4f')]);
+        scoreName = '';
+    end
+    if ~isfield(model,'groupEffect')
+        title([scoreName 'order: ' num2str(model.order)], 'Interpreter', 'none');
+    elseif model.order
+        title([scoreName 'order: ' num2str(model.order) ...
+            ',  p(grp): ' num2str(model.groupEffect.p,'%.4f') ...
+            ',  p(int): ' num2str(model.interEffect.p,'%.4f')], 'Interpreter', 'none');
+    else
+        title([scoreName 'order: ' num2str(model.order) ...
+            ',  p(grp): ' num2str(model.groupEffect.p,'%.4f')], 'Interpreter', 'none');
     end
 end
 
