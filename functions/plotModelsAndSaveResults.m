@@ -59,11 +59,25 @@ if ~isfield(plotOpts,'figPosition')
     plotOpts.figPosition=[440   488   525   310];
 end
 
+%% sanitize model names for safe use in file paths and variable names
+% Replace characters that are invalid in file paths (e.g. dots, slashes,
+% spaces, parentheses) with underscores. This prevents errors when column
+% names from imaging data contain such characters.
+for iM=1:length(outModelVect)
+    mName = outModelVect{iM}.mName;
+    safeName = regexprep(mName, '[^a-zA-Z0-9_]', '_');
+    % collapse multiple consecutive underscores
+    safeName = regexprep(safeName, '_+', '_');
+    % strip leading/trailing underscores
+    safeName = regexprep(safeName, '^_|_$', '');
+    outModelVect{iM}.safeFileName = safeName;
+end
+
 %% save results (mat file and table)
 nMod=length(outModelVect);
 if saveResults
-    mkdir(outDir); 
-    
+    mkdir(outDir);
+
     for iM=1:nMod
         % define rows to save in the table
         tab.modelName{iM,1} = outModelVect{iM}.mName;
@@ -88,25 +102,25 @@ if saveResults
 %             end
 % 
 %             for iB = 1:length(outModel.designVars)
-%                 fieldname=genvarname(['beta_' outModel.designVars{iB}]);
+%                 fieldname=matlab.lang.makeValidName(['beta_' outModel.designVars{iB}]);
 %                 tab.(fieldname)(iM,1) = outModel.beta(iB);
 %             end
             
             for iB = 1:length(outModelVect{iM}.designVars)
-                fieldname=genvarname(['full_beta_' outModelVect{iM}.designVars{iB}]);
+                fieldname=matlab.lang.makeValidName(['full_beta_' outModelVect{iM}.designVars{iB}]);
                 tab.(fieldname)(iM,1) = outModelVect{iM}.beta(iB);
             end
             
             if isfield(outModelVect{iM},'groupEffect')
                 for iB = 1:length(outModelVect{iM}.groupEffect.reducedModel.designVars)
-                    fieldname=genvarname(['noGroup_beta_' outModelVect{iM}.groupEffect.reducedModel.designVars{iB}]);
+                    fieldname=matlab.lang.makeValidName(['noGroup_beta_' outModelVect{iM}.groupEffect.reducedModel.designVars{iB}]);
                     tab.(fieldname)(iM,1) = outModelVect{iM}.groupEffect.reducedModel.beta(iB);
                 end
             end
             
             if outModelVect{iM}.order & isfield(outModelVect{iM},'interEffect')
                 for iB = 1:length(outModelVect{iM}.interEffect.reducedModel.designVars)
-                    fieldname=genvarname(['noInteraction_beta_' outModelVect{iM}.interEffect.reducedModel.designVars{iB}]);
+                    fieldname=matlab.lang.makeValidName(['noInteraction_beta_' outModelVect{iM}.interEffect.reducedModel.designVars{iB}]);
                     tab.(fieldname)(iM,1) = outModelVect{iM}.interEffect.reducedModel.beta(iB);
                 end
             end
@@ -124,11 +138,11 @@ if saveResults
     % create result table
     tab = struct2table(tab);
 
-    % output file
+    % output file (use sanitized names for file paths)
     if length(outModelVect)>1
-        resFile=fullfile(outDir,['resultTable' outModelVect{1}.mName 'to' outModelVect{end}.mName]);
+        resFile=fullfile(outDir,['resultTable' outModelVect{1}.safeFileName 'to' outModelVect{end}.safeFileName]);
     else
-        resFile=fullfile(outDir,['resultTable' outModelVect{1}.mName]);
+        resFile=fullfile(outDir,['resultTable' outModelVect{1}.safeFileName]);
     end
     writetable(tab,[resFile '.txt'],'Delimiter','\t');
     
@@ -148,13 +162,11 @@ if plotOpts.plotting
             
             [fig2,res]=plotResiduals(outModelVect{iM});
             
-            % save figure
+            % save figure (use sanitized names for file paths)
             if saveResults == 2
-                print(fig,fullfile(outDir,[outModelVect{iM}.mName '_' plottedModel]),'-depsc2');
-%                 saveas(fig,fullfile(outDir,[outModelVect{iM}.mName '_' plottedModel]));
-                
-                print(fig2,fullfile(outDir,[outModelVect{iM}.mName '_' plottedModel '_ResNormplot']),'-depsc2');
-%                 saveas(fig2,fullfile(outDir,[outModelVect{iM}.mName '_' plottedModel '_ResNormplot']));
+                print(fig,fullfile(outDir,[outModelVect{iM}.safeFileName '_' plottedModel]),'-depsc2');
+
+                print(fig2,fullfile(outDir,[outModelVect{iM}.safeFileName '_' plottedModel '_ResNormplot']),'-depsc2');
             end
         end
     end
