@@ -38,6 +38,24 @@ maxAgeDiff = 1; % maximum allowed age difference in years
 CPT = load(cptMatFile);
 cptFields = fieldnames(CPT);
 
+% if the .mat contains a single variable that is itself a table or struct,
+% unwrap it so the field detection works on the actual data columns
+if numel(cptFields) == 1
+    inner = CPT.(cptFields{1});
+    if istable(inner)
+        % convert table to struct of column vectors
+        CPT = struct();
+        varNames = inner.Properties.VariableNames;
+        for iV = 1:length(varNames)
+            CPT.(varNames{iV}) = inner.(varNames{iV});
+        end
+        cptFields = fieldnames(CPT);
+    elseif isstruct(inner)
+        CPT = inner;
+        cptFields = fieldnames(CPT);
+    end
+end
+
 %% auto-detect field names in sorted struct
 sFields = fieldnames(sorted);
 
