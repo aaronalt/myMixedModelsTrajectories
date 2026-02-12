@@ -57,79 +57,81 @@ sorted = sortDemographics(X, 'demographics.mat');
 
 
 % --- 1. ROW FILTERING (Subjects) ---
-nan_mask = isnan(diagnosis_bin);
-vol_mask = X(:, 1) < 1000;
-age_mask = age < 34;
-keep_mask = ~nan_mask & ~vol_mask & age_mask;
+% nan_mask = isnan(diagnosis_bin);
+% vol_mask = X(:, 1) < 1000;
+% age_mask = age < 34;
+% keep_mask = ~nan_mask & ~vol_mask & age_mask;
 
 % Apply row filter to all vectors immediately
-idcov  = subject(keep_mask, :);   
-agecov = age(keep_mask, :);              
-dxcov  = diagnosis_bin(keep_mask, :);    
-gender = gender_bin(keep_mask, :);  
-tiv_orig = X(:, 16);
-tivcov = tiv_orig(keep_mask, :);
-X0 = X(keep_mask,:);
+% idcov  = subject(keep_mask, :);   
+% agecov = age(keep_mask, :);              
+% dxcov  = diagnosis_bin(keep_mask, :);    
+% gender = gender_bin(keep_mask, :);  
+% tiv_orig = X(:, 16);
+% tivcov = tiv_orig(keep_mask, :);
+% X0 = X(keep_mask,:);
+% 
+% bad_subjects = [];
+% subjects = unique(idcov);
+% for s = 1:length(subjects)
+%     idx = find(idcov == subjects(s));
+%     if length(idx) > 1
+%         vols = X0(idx, 1);  % LH
+%         if (max(vols) - min(vols)) > 300
+%             bad_subjects = [bad_subjects; subjects(s)];
+%         end
+%     end
+% end
+% good_mask = ~ismember(idcov, bad_subjects);
 
-bad_subjects = [];
-subjects = unique(idcov);
-for s = 1:length(subjects)
-    idx = find(idcov == subjects(s));
-    if length(idx) > 1
-        vols = X0(idx, 1);  % LH
-        if (max(vols) - min(vols)) > 300
-            bad_subjects = [bad_subjects; subjects(s)];
-        end
-    end
-end
-good_mask = ~ismember(idcov, bad_subjects);
+% idcov = idcov(good_mask);
+% agecov = agecov(good_mask);
+% dxcov = dxcov(good_mask);
+% gender = gender(good_mask);
+% tivcov = tivcov(good_mask);
+% X0 = X0(good_mask, :);
+% 
+% bad_subjects = [];
+% subjects = unique(idcov);
+% for s = 1:length(subjects)
+%     idx = find(idcov == subjects(s));
+%     if length(idx) > 1
+%         vols = X0(idx, 2);  % LH
+%         if (max(vols) - min(vols)) > 300
+%             bad_subjects = [bad_subjects; subjects(s)];
+%         end
+%     end
+% end
+% good_mask = ~ismember(idcov, bad_subjects);
 
-idcov = idcov(good_mask);
-agecov = agecov(good_mask);
-dxcov = dxcov(good_mask);
-gender = gender(good_mask);
-tivcov = tivcov(good_mask);
-X0 = X0(good_mask, :);
+% idcov = idcov(good_mask);
+% agecov = agecov(good_mask);
+% dxcov = dxcov(good_mask);
+% gender = gender(good_mask);
+% gender = double(gender);
+% tivcov = tivcov(good_mask);
+% X0 = X0(good_mask, :);
 
-bad_subjects = [];
-subjects = unique(idcov);
-for s = 1:length(subjects)
-    idx = find(idcov == subjects(s));
-    if length(idx) > 1
-        vols = X0(idx, 2);  % LH
-        if (max(vols) - min(vols)) > 300
-            bad_subjects = [bad_subjects; subjects(s)];
-        end
-    end
-end
-good_mask = ~ismember(idcov, bad_subjects);
-
-idcov = idcov(good_mask);
-agecov = agecov(good_mask);
-dxcov = dxcov(good_mask);
-gender = gender(good_mask);
-gender = double(gender);
-tivcov = tivcov(good_mask);
-X0 = X0(good_mask, :);
-
-input.subjID=idcov; % subject IDs
-input.age=agecov; % age
-input.grouping=dxcov;% column (with 0 and 1 values) you want to use for grouping: $
+input.subjID=mCPT.ID; % subject IDs
+input.age=mCPT.AGE; % age
+input.grouping=mCPT.DIAG;% column (with 0 and 1 values) you want to use for grouping: $
                           % input.grouping=[]; if you have only 1 group
                           % 1 column if you have 2 groups
                           % 2 colums if you have 3 groups (in the first column  you have 1 for everyone in the group 1 and 0 everywhere else,
-                          % and in the second column you have 1 for everyone is in the group 2 and 0 everywhere else)  
-input.data=compute_residuals_dimitri_2(X0(:,1:2),[tivcov, gender])                          
+                          % and in the second column you have 1 for everyone is in the group 2 and 0 everywhere else)
+tivcov = mX(:, 16);
+clau = mX(:,1:2);
+input.data=compute_residuals_dimitri_2(clau,[tivcov, mCPT.GENDER]);                          
 %input.data=X0(:,1:2);    % data to fit (thickness, volume, behavior, ...)
 input.cov=[]; % model covariates (here, only sex is included as covariate)
 
-[~, sort_idx] = sortrows([idcov, agecov]);
-idcov = idcov(sort_idx);
-agecov = agecov(sort_idx);
-dxcov = dxcov(sort_idx);
-gender = gender(sort_idx);
-tivcov = tivcov(sort_idx);
-X0 = X0(sort_idx, :);
+% [~, sort_idx] = sortrows([idcov, agecov]);
+% idcov = idcov(sort_idx);
+% agecov = agecov(sort_idx);
+% dxcov = dxcov(sort_idx);
+% gender = gender(sort_idx);
+% tivcov = tivcov(sort_idx);
+% X0 = X0(sort_idx, :);
 
 % ---------------------------
 % model estimation options
@@ -196,13 +198,13 @@ effectSizeGroup=GroupCalculationEffect(outModelVect);
 effectSizeInter=InterCalculationEffect(outModelVect);
 %table reporting the interaction (if variable interaction is included) size effect for each model (each response variable)
 
-figure; hold on;
-subjects = unique(idcov);
-colors = lines(2);
-for s = 1:length(subjects)
-    idx = idcov == subjects(s);
-    grp = dxcov(idx); grp = grp(1) + 1;  % 1 or 2
-    plot(agecov(idx), X0(idx,1), '-o', 'Color', colors(grp,:), 'MarkerSize', 3);
-end
-xlabel('Age'); ylabel('RH Claustrum Volume');
-legend({'Control','VCFS'});
+% figure; hold on;
+% subjects = unique(idcov);
+% colors = lines(2);
+% for s = 1:length(subjects)
+%     idx = idcov == subjects(s);
+%     grp = dxcov(idx); grp = grp(1) + 1;  % 1 or 2
+%     plot(agecov(idx), X0(idx,1), '-o', 'Color', colors(grp,:), 'MarkerSize', 3);
+% end
+% xlabel('Age'); ylabel('RH Claustrum Volume');
+% legend({'Control','VCFS'});
