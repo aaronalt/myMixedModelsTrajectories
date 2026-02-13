@@ -105,17 +105,13 @@ fprintf('%d VCFS observations from %d subjects.\n', ...
     nObs, length(unique(mCPT.ID)));
 
 %% ------------------------------------------------------------------------
-% Set up input struct for fitOptModel
+% Common input and options
 % ------------------------------------------------------------------------
 input.subjID   = mCPT.ID;
 input.age      = mCPT.AGE;
 input.grouping = [];                % no group — VCFS only
 input.data     = scoreData;         % nObs x nScores
-input.cov      = clau;              % claustrum LH + RH as covariates
 
-%% ------------------------------------------------------------------------
-% Model estimation options
-% ------------------------------------------------------------------------
 opts.orders    = 1;         % linear age effect only
 opts.mType     = 'slope';   % random intercept + slope (recommended)
 opts.vertID    = 1:nScores; % one model per CPT score
@@ -123,29 +119,37 @@ opts.modelNames = scoreCols;
 opts.alpha     = 0.05;
 opts.figPosition = [440 488 525 310];
 
-%% ------------------------------------------------------------------------
-% Fit models
-% ------------------------------------------------------------------------
-fprintf('\n=== Fitting mixed models for %d CPT measures ===\n', nScores);
-outModelVect = fitOptModel(input, opts);
-
-% FDR correction across all CPT measures
-outModelVect_corr = fdr_correct(outModelVect, opts.alpha);
-
-%% ------------------------------------------------------------------------
-% Plot and save results
-% ------------------------------------------------------------------------
-outDir = fullfile('./results_CPT');
-
 plotOpts.legTxt   = {'22q'};
 plotOpts.xLabel   = 'Age';
 plotOpts.yLabel   = 'CPT T-score';
 plotOpts.plotCI   = 1;
 plotOpts.plotType  = 'redInter';
-plotOpts.nCov     = size(input.cov, 2) * (1 + max(opts.orders));  % main + age x cov interactions
-
 saveResults = 2;  % 0=no, 1=table only, 2=table + plots
 
-plotModelsAndSaveResults(outModelVect_corr, plotOpts, saveResults, outDir);
+%% ------------------------------------------------------------------------
+% Left Hemisphere — claustrum LH as covariate
+% ------------------------------------------------------------------------
+fprintf('\n=== LH: Fitting mixed models for %d CPT measures ===\n', nScores);
+input.cov = clau(:, 1);
+plotOpts.nCov = size(input.cov, 2) * (1 + max(opts.orders));
 
-fprintf('\n=== Done. Results saved to %s ===\n', outDir);
+outModelVect_LH = fitOptModel(input, opts);
+outModelVect_LH = fdr_correct(outModelVect_LH, opts.alpha);
+
+outDir_LH = fullfile('./results_CPT', 'LH');
+plotModelsAndSaveResults(outModelVect_LH, plotOpts, saveResults, outDir_LH);
+fprintf('\n=== LH done. Results saved to %s ===\n', outDir_LH);
+
+%% ------------------------------------------------------------------------
+% Right Hemisphere — claustrum RH as covariate
+% ------------------------------------------------------------------------
+fprintf('\n=== RH: Fitting mixed models for %d CPT measures ===\n', nScores);
+input.cov = clau(:, 2);
+plotOpts.nCov = size(input.cov, 2) * (1 + max(opts.orders));
+
+outModelVect_RH = fitOptModel(input, opts);
+outModelVect_RH = fdr_correct(outModelVect_RH, opts.alpha);
+
+outDir_RH = fullfile('./results_CPT', 'RH');
+plotModelsAndSaveResults(outModelVect_RH, plotOpts, saveResults, outDir_RH);
+fprintf('\n=== RH done. Results saved to %s ===\n', outDir_RH);
