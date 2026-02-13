@@ -142,7 +142,7 @@ plotOpts.xLabel   = 'Age';
 plotOpts.yLabel   = 'CPT T-score';
 plotOpts.plotCI   = 1;
 plotOpts.plotType  = 'redInter';
-plotOpts.nCov     = size(input.cov, 2);
+plotOpts.nCov     = size(input.cov, 2) * (1 + max(opts.orders));  % main + age x cov interactions
 
 saveResults = 2;  % 0=no, 1=table only, 2=table + plots
 
