@@ -110,6 +110,20 @@ if ~isempty(cov)
     for iC=1:size(cov,2)
         designVars=[designVars; ['Covariate ' num2str(iC)]];
     end
+
+    % Age x Covariate interaction
+    if opts.mOrder>0
+        for iO = 1:mOrder
+            for iC=1:size(cov,2)
+                designMatrix = [designMatrix (age.^iO).*cov(:,iC)];
+                if iO==1
+                    designVars = [designVars; sprintf('age_by_cov_%d', iC)];
+                else
+                    designVars = [designVars; sprintf('age%d_by_cov_%d', iO, iC)];
+                end
+            end
+        end
+    end
 end
 
 outModel.input.subjID=subjID;

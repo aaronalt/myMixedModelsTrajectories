@@ -6,11 +6,12 @@
 % variable, age as the continuous predictor, and claustrum volume (LH, RH)
 % as covariates.
 %
-% Model per score column:
-%   score ~ 1 + group + age + age*group + clau_LH + clau_RH + (1 + age | subject)
+% VCFS-only model per score column:
+%   score ~ 1 + age + clau_LH + clau_RH + age*clau_LH + age*clau_RH + (1 + age | subject)
 %
-% Model selection uses BIC (orders 0-1 by default). Group and interaction
-% effects are tested with likelihood-ratio tests and corrected for
+% The age*claustrum interaction tests whether the claustrum's contribution
+% to attention changes over development in VCFS subjects.
+% Model selection uses BIC (orders 0-1 by default), corrected for
 % multiple comparisons using FDR.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -89,6 +90,19 @@ nObs        = sum(ageKeep);
 fprintf('%d observations from %d subjects after filtering.\n', ...
     nObs, length(unique(mCPT.ID)));
 
+% Filter: keep only VCFS (22q) subjects
+vcfsKeep = mCPT.DIAG == 1;
+fprintf('VCFS filter: keeping %d of %d observations.\n', sum(vcfsKeep), nObs);
+mCPT.ID     = mCPT.ID(vcfsKeep);
+mCPT.AGE    = mCPT.AGE(vcfsKeep);
+mCPT.DIAG   = mCPT.DIAG(vcfsKeep);
+scoreData   = scoreData(vcfsKeep, :);
+clau        = clau(vcfsKeep, :);
+nObs        = sum(vcfsKeep);
+
+fprintf('%d VCFS observations from %d subjects.\n', ...
+    nObs, length(unique(mCPT.ID)));
+
 % Mean-center age to reduce multicollinearity with claustrum volume
 ageMean = nanmean(mCPT.AGE);
 mCPT.AGE = mCPT.AGE - ageMean;
@@ -99,7 +113,7 @@ fprintf('Age mean-centered (mean = %.2f subtracted).\n', ageMean);
 % ------------------------------------------------------------------------
 input.subjID   = mCPT.ID;
 input.age      = mCPT.AGE;
-input.grouping = mCPT.DIAG;        % 0/1 binary (HC vs 22q)
+input.grouping = [];                % no group — VCFS only
 input.data     = scoreData;         % nObs x nScores
 input.cov      = clau;              % claustrum LH + RH as covariates
 
@@ -127,7 +141,7 @@ outModelVect_corr = fdr_correct(outModelVect, opts.alpha);
 % ------------------------------------------------------------------------
 outDir = fullfile('./results_CPT');
 
-plotOpts.legTxt   = {'HC', '22q'};
+plotOpts.legTxt   = {'22q'};
 plotOpts.xLabel   = 'Age';
 plotOpts.yLabel   = 'CPT T-score';
 plotOpts.plotCI   = 1;
@@ -137,11 +151,5 @@ plotOpts.nCov     = size(input.cov, 2);
 saveResults = 2;  % 0=no, 1=table only, 2=table + plots
 
 plotModelsAndSaveResults(outModelVect_corr, plotOpts, saveResults, outDir);
-
-%% ------------------------------------------------------------------------
-% Effect sizes
-% ------------------------------------------------------------------------
-effectSizeGroup = GroupCalculationEffect(outModelVect);
-effectSizeInter = InterCalculationEffect(outModelVect);
 
 fprintf('\n=== Done. Results saved to %s ===\n', outDir);
