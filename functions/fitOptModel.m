@@ -89,18 +89,25 @@ for iM = 1:nModels
         continue;
     end
     
+    hasGroup = ~isempty(input.grouping) && length(unique(input.grouping))>1;
+
     for iO = 1:nOrders
         fprintf('%d ',opts.orders(iO));
         estOpts.mOrder=opts.orders(iO);
-        estOpts.groupEffect=1;
-        estOpts.interEffect=1;
+        estOpts.groupEffect=hasGroup;
+        estOpts.interEffect=hasGroup;
         estOpts.mType=opts.mType;
         % estimate temporary model
+        if hasGroup
+            grpSub = input.grouping(dataID,:);
+        else
+            grpSub = [];
+        end
         if ~isempty(input.cov)
-            tmpModel = estimateModel(input.subjID(dataID,:), input.grouping(dataID,:),...
+            tmpModel = estimateModel(input.subjID(dataID,:), grpSub,...
                 input.age(dataID,:), input.cov(dataID,:), dataVect(dataID,:), estOpts);
         else
-            tmpModel = estimateModel(input.subjID(dataID,:), input.grouping(dataID,:),...
+            tmpModel = estimateModel(input.subjID(dataID,:), grpSub,...
                 input.age(dataID,:), [], dataVect(dataID,:), estOpts);
         end
         if iO==1
