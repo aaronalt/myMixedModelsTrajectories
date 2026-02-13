@@ -19,7 +19,8 @@ clc
 clear all
 close all
 
-addpath(genpath('./functions'));
+scriptDir = fileparts(mfilename('fullpath'));
+addpath(genpath(fullfile(scriptDir, 'functions')));
 startup;
 
 %% ------------------------------------------------------------------------
