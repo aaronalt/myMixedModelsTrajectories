@@ -46,7 +46,7 @@ end
 %% plot fitted model
 if ~isempty(params)
     ageVec=min(age):0.1:max(age);
-    plot(ageVec,polyval(flip(params),ageVec),'LineWidth',3,'Color',[0 0 0]);
+    plot(ageVec,polyval(flip(params),ageVec),'LineWidth',3,'Color',[1 0 0]);
     
 %     if nargin == 8
 %         % confidecte intervals
@@ -61,6 +61,6 @@ if ~isempty(params)
 %     end
 
     if nargin == 8 && exist('ypred','var') && ~isempty(ypred)
-        shadedErrorBar(ageS,ypred,delta,{'Color',[0 0 0]},0.5)
+        shadedErrorBar(ageS,ypred,delta,{'Color',[1 0 0]},0.5)
     end
 end

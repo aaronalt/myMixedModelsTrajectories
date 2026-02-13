@@ -401,12 +401,20 @@ else
     ylabel('data');
 end
 
-% legend
-if isfield(plotOpts,'legTxt')
-    legend(pl,plotOpts.legTxt)
-else
-    for iG=1:groups
-        legTxt{iG}=['Group ' num2str(iG)];
+% slope and R^2 annotation
+if model.order >= 1
+    % slope is the age beta (2nd element for no-group, 3rd for group models)
+    if groups == 1
+        slope = model.beta(2);
+    else
+        slope = model.beta(groups + 1);
     end
-    legend(pl,legTxt);
+    % conditional R^2: 1 - var(residuals) / var(data)
+    resid = model.stats.iwres;
+    SSres = sum(resid.^2);
+    SStot = sum((model.input.data - nanmean(model.input.data)).^2);
+    R2 = 1 - SSres / SStot;
+    text(0.05, 0.95, sprintf('slope = %.3f\nR^2 = %.3f', slope, R2), ...
+        'Units', 'normalized', 'VerticalAlignment', 'top', ...
+        'FontSize', 11, 'FontName', 'Helvetica');
 end
