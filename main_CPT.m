@@ -104,11 +104,6 @@ nObs        = sum(vcfsKeep);
 fprintf('%d VCFS observations from %d subjects.\n', ...
     nObs, length(unique(mCPT.ID)));
 
-% Mean-center age to reduce multicollinearity with claustrum volume
-ageMean = nanmean(mCPT.AGE);
-mCPT.AGE = mCPT.AGE - ageMean;
-fprintf('Age mean-centered (mean = %.2f subtracted).\n', ageMean);
-
 %% ------------------------------------------------------------------------
 % Set up input struct for fitOptModel
 % ------------------------------------------------------------------------
