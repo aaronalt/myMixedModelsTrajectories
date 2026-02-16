@@ -2,9 +2,11 @@
 plotting.py - Port of plotModel.m, plotDataAndFit.m, plotResiduals.m, plotCI.m
 
 Publication-quality visualization of mixed models with matplotlib.
+All model data accessed through pandas DataFrames/Series.
 """
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
 
@@ -15,65 +17,56 @@ def plot_data_and_fit(age, data=None, subjects=None, params=None,
     """
     Plot longitudinal data points and a fitted model curve.
 
-    Port of plotDataAndFit.m.
-
     Parameters
     ----------
-    age : array-like
+    age : array-like or pd.Series
         Observation time points (x axis).
-    data : array-like or None
+    data : array-like, pd.Series, or None
         Response data (y axis). If None, no data points plotted.
-    subjects : array-like or None
+    subjects : array-like, pd.Series, or None
         Subject IDs for connecting repeated measures.
     params : array-like or None
         Polynomial coefficients [intercept, age, age^2, ...].
-        If None, no curve is plotted.
     plot_color : color
         Matplotlib color specification.
-    age_sorted : array-like or None
-        Sorted age for CI plotting.
-    ypred : array-like or None
-        Predicted values for CI.
-    delta : array-like or None
-        CI half-widths.
+    age_sorted, ypred, delta : array-like or None
+        For plotting confidence intervals.
     ax : matplotlib Axes or None
-        Axes to plot on. If None, uses current axes.
 
     Returns
     -------
-    handle : matplotlib artist
-        Plot handle for legend.
+    handle : matplotlib artist or None
     """
     if ax is None:
         ax = plt.gca()
 
+    # Ensure numpy for plotting
+    age = np.asarray(age)
     handle = None
 
-    # Plot data points
     if data is not None:
+        data = np.asarray(data)
         handle = ax.plot(age, data, '.', markersize=12, color=plot_color, alpha=0.5)[0]
 
-        # Connect repeated measurements per subject
         if subjects is not None:
-            unique_sub = np.unique(subjects)
-            for sid in unique_sub:
+            subjects = np.asarray(subjects)
+            for sid in np.unique(subjects):
                 mask = subjects == sid
                 ax.plot(age[mask], data[mask], '--', color=plot_color, alpha=0.5, linewidth=0.8)
 
-    # Plot fitted polynomial curve
     if params is not None:
-        age_vec = np.linspace(np.min(age), np.max(age), 200)
-        # params = [intercept, age, age^2, ...] -> polyval needs [highest, ..., lowest]
+        params = np.asarray(params)
+        age_vec = np.linspace(age.min(), age.max(), 200)
         poly_coeffs = np.flip(params)
         ax.plot(age_vec, np.polyval(poly_coeffs, age_vec), linewidth=3,
                 color=np.array(plot_color) * 0.8 if isinstance(plot_color, np.ndarray) else plot_color)
 
-        # Plot confidence intervals (shaded)
         if ypred is not None and delta is not None and age_sorted is not None:
-            sort_idx = np.argsort(age_sorted)
-            a_s = np.array(age_sorted)[sort_idx]
-            y_s = np.array(ypred)[sort_idx]
-            d_s = np.array(delta)[sort_idx]
+            a_s = np.asarray(age_sorted)
+            y_s = np.asarray(ypred)
+            d_s = np.asarray(delta)
+            sort_idx = np.argsort(a_s)
+            a_s, y_s, d_s = a_s[sort_idx], y_s[sort_idx], d_s[sort_idx]
             color = np.array(plot_color) * 0.8 if isinstance(plot_color, np.ndarray) else plot_color
             ax.fill_between(a_s, y_s - d_s, y_s + d_s, alpha=0.2, color=color)
 
@@ -81,23 +74,19 @@ def plot_data_and_fit(age, data=None, subjects=None, params=None,
 
 
 def _extract_group_params(model, pl_model, groups, n_cov):
-    """
-    Extract per-group polynomial parameters from beta vector.
-
-    Mirrors the parameter extraction logic in plotModel.m.
-    """
-    beta = pl_model.beta
+    """Extract per-group polynomial parameters from the beta Series."""
+    beta = pl_model.beta.values  # convert to positional array
     order = model.order
     params = {}
 
     if groups == 1:
-        params[0] = beta[:order + 1] if n_cov == 0 else beta[:order + 1]
+        params[0] = beta[:order + 1]
         return params
 
     if groups == 2:
         if order == 0:
-            params[0] = np.array([beta[0] + beta[1]])  # group 1
-            params[1] = np.array([beta[0]])  # group 0 (reference)
+            params[0] = np.array([beta[0] + beta[1]])
+            params[1] = np.array([beta[0]])
         elif order == 1:
             params[0] = np.array([beta[0] + beta[1], beta[2] + beta[3]])
             params[1] = np.array([beta[0], beta[2]])
@@ -133,13 +122,8 @@ def _extract_group_params(model, pl_model, groups, n_cov):
 
 
 def _extract_no_interaction_params(model, pl_model, groups, n_cov):
-    """
-    Extract per-group parameters from a no-interaction reduced model.
-
-    In the no-interaction model, the age terms are shared across groups,
-    only intercepts differ.
-    """
-    beta = pl_model.beta
+    """Extract per-group parameters from a no-interaction reduced model."""
+    beta = pl_model.beta.values
     order = model.order
     params = {}
 
@@ -171,24 +155,28 @@ def _extract_no_interaction_params(model, pl_model, groups, n_cov):
     return params
 
 
-def _compute_confidence_intervals(pl_model, age, n_cov):
+def _compute_confidence_intervals(pl_model, n_cov):
     """
-    Compute prediction confidence intervals.
+    Compute prediction confidence intervals from a model.
 
-    Mimics MATLAB's nlpredci for linear models.
+    Uses the design_matrix DataFrame and covb DataFrame from the model.
     """
+    input_df = pl_model.input.df
+    age = input_df['age'].values
     sort_idx = np.argsort(age)
     age_sorted = age[sort_idx]
-    beta = pl_model.beta[:len(pl_model.beta) - n_cov] if n_cov > 0 else pl_model.beta
-    des_mat = pl_model.design_matrix[sort_idx, :len(beta)]
-    cov_b = pl_model.stats.covb[:len(beta), :len(beta)]
-    residuals = pl_model.stats.iwres[sort_idx]
 
-    # Predicted values
+    # Exclude covariate columns from CI computation
+    cov_cols = pl_model.input.cov_cols
+    non_cov_cols = [c for c in pl_model.design_matrix.columns if c not in cov_cols]
+
+    beta = pl_model.beta[non_cov_cols].values
+    des_mat = pl_model.design_matrix[non_cov_cols].values[sort_idx]
+    cov_b = pl_model.stats.covb.loc[non_cov_cols, non_cov_cols].values
+    residuals = pl_model.stats.iwres.values[sort_idx]
+
     ypred = des_mat @ beta
 
-    # Standard error of prediction
-    # delta = t_crit * sqrt(diag(X * CovB * X'))
     n = len(age)
     p = len(beta)
     mse = np.sum(residuals ** 2) / max(n - p, 1)
@@ -199,11 +187,55 @@ def _compute_confidence_intervals(pl_model, age, n_cov):
     return age_sorted, ypred, delta, sort_idx
 
 
+def _split_by_group(model):
+    """
+    Split model input data by group, returning dicts of per-group arrays
+    and a boolean group_logic array.
+    """
+    input_df = model.input.df
+    group_cols = model.input.group_cols
+    n_groups = len(group_cols) + 1 if group_cols else 1
+    n_obs = len(input_df)
+
+    group_data = {}
+    group_age = {}
+    group_subj = {}
+    group_logic = np.zeros((n_obs, n_groups), dtype=bool)
+
+    if n_groups == 1:
+        group_data[0] = input_df['data'].values
+        group_age[0] = input_df['age'].values
+        group_subj[0] = input_df['subj_id'].values
+        group_logic[:, 0] = True
+    elif n_groups == 2:
+        mask1 = input_df[group_cols[0]].values.astype(bool)
+        group_data[0] = input_df.loc[mask1, 'data'].values
+        group_age[0] = input_df.loc[mask1, 'age'].values
+        group_subj[0] = input_df.loc[mask1, 'subj_id'].values
+        group_data[1] = input_df.loc[~mask1, 'data'].values
+        group_age[1] = input_df.loc[~mask1, 'age'].values
+        group_subj[1] = input_df.loc[~mask1, 'subj_id'].values
+        group_logic[:, 0] = mask1
+        group_logic[:, 1] = ~mask1
+    elif n_groups == 3:
+        for ig in range(2):
+            mask = input_df[group_cols[ig]].values.astype(bool)
+            group_data[ig] = input_df.loc[mask, 'data'].values
+            group_age[ig] = input_df.loc[mask, 'age'].values
+            group_subj[ig] = input_df.loc[mask, 'subj_id'].values
+            group_logic[:, ig] = mask
+        mask3 = (input_df[group_cols[0]].values == 0) & (input_df[group_cols[1]].values == 0)
+        group_data[2] = input_df.loc[mask3, 'data'].values
+        group_age[2] = input_df.loc[mask3, 'age'].values
+        group_subj[2] = input_df.loc[mask3, 'subj_id'].values
+        group_logic[:, 2] = mask3
+
+    return n_groups, group_data, group_age, group_subj, group_logic
+
+
 def plot_model(model, plot_opts, fig=None):
     """
     Plot a fitted mixed-effect model with data, curves, and CIs.
-
-    Port of plotModel.m.
 
     Parameters
     ----------
@@ -220,7 +252,6 @@ def plot_model(model, plot_opts, fig=None):
         - 'title_text': optional custom title
         - 'fig_size': tuple (width, height) in inches
     fig : matplotlib Figure or None
-        If None, creates a new figure.
 
     Returns
     -------
@@ -228,7 +259,6 @@ def plot_model(model, plot_opts, fig=None):
     plotted_model : str
         'full', 'noGroup', or 'noInteraction'
     """
-    # Defaults
     plot_col = plot_opts.get('plot_col', [np.array([0, 0, 1.]),
                                           np.array([1., 0, 0]),
                                           np.array([0, 0, 0.])])
@@ -242,85 +272,38 @@ def plot_model(model, plot_opts, fig=None):
     else:
         ax = fig.gca()
 
-    # Determine groups and split data
-    grouping = model.input.grouping
-    if grouping.shape[1] == 0:
-        groups = 1
-    else:
-        groups = grouping.shape[1] + 1
-
-    age_all = model.input.age
-    data_all = model.input.data
-    subj_all = model.input.subj_id
-
-    # Split data by group
-    group_data = {}
-    group_age = {}
-    group_subj = {}
-    group_logic = np.zeros((len(age_all), groups), dtype=bool)
-
-    if groups == 1:
-        group_data[0] = data_all
-        group_age[0] = age_all
-        group_subj[0] = subj_all
-        group_logic[:, 0] = True
-    elif groups == 2:
-        mask1 = grouping[:, 0].astype(bool)
-        group_data[0] = data_all[mask1]
-        group_age[0] = age_all[mask1]
-        group_subj[0] = subj_all[mask1]
-        group_data[1] = data_all[~mask1]
-        group_age[1] = age_all[~mask1]
-        group_subj[1] = subj_all[~mask1]
-        group_logic[:, 0] = mask1
-        group_logic[:, 1] = ~mask1
-    elif groups == 3:
-        for ig in range(2):
-            mask = grouping[:, ig].astype(bool)
-            group_data[ig] = data_all[mask]
-            group_age[ig] = age_all[mask]
-            group_subj[ig] = subj_all[mask]
-            group_logic[:, ig] = mask
-        # Third group: neither in group 1 nor group 2
-        mask3 = (grouping[:, 0] == 0) & (grouping[:, 1] == 0)
-        group_data[2] = data_all[mask3]
-        group_age[2] = age_all[mask3]
-        group_subj[2] = subj_all[mask3]
-        group_logic[:, 2] = mask3
-
+    groups, group_data, group_age, group_subj, group_logic = _split_by_group(model)
     handles = []
 
-    # --- Decide which model to plot ---
-    # Case 1: redGrp and group effect not significant -> plot no-group model
+    # --- Case 1: redGrp and group effect not significant ---
     if (plot_type == 'redGrp'
             and (model.group_effect is None or not model.group_effect['h'])):
 
         pl_model = model.group_effect['reduced_model']
-        params = pl_model.beta[:len(pl_model.beta) - n_cov]
+        cov_cols = pl_model.input.cov_cols
+        non_cov_cols = [c for c in pl_model.beta.index if c not in cov_cols]
+        params = pl_model.beta[non_cov_cols].values
 
-        # Plot data for each group
         for ig in range(groups):
             h = plot_data_and_fit(group_age[ig], group_data[ig], group_subj[ig],
                                   None, plot_col[ig], ax=ax)
             handles.append(h)
 
-        # Plot single fitted line
         if plot_ci:
-            age_s, ypred, delta, _ = _compute_confidence_intervals(pl_model, age_all, n_cov)
-            plot_data_and_fit(age_all, None, None, params, plot_col[-1],
+            age_s, ypred, delta, _ = _compute_confidence_intervals(pl_model, n_cov)
+            plot_data_and_fit(model.input.df['age'].values, None, None, params, plot_col[-1],
                               age_sorted=age_s, ypred=ypred, delta=delta, ax=ax)
         else:
-            plot_data_and_fit(age_all, None, None, params, plot_col[-1], ax=ax)
+            plot_data_and_fit(model.input.df['age'].values, None, None, params, plot_col[-1], ax=ax)
 
         plotted_model = 'noGroup'
 
-    # Case 2: no significant interaction -> plot no-interaction model
+    # --- Case 2: no significant interaction ---
     elif (model.order > 0
           and plot_type != 'full'
           and model.inter_effect is not None
           and not model.inter_effect['h']):
 
-        # Plot data
         for ig in range(groups):
             h = plot_data_and_fit(group_age[ig], group_data[ig], group_subj[ig],
                                   None, plot_col[ig], ax=ax)
@@ -330,7 +313,7 @@ def plot_model(model, plot_opts, fig=None):
         grp_params = _extract_no_interaction_params(model, pl_model, groups, n_cov)
 
         if plot_ci:
-            age_s, ypred, delta, sort_idx = _compute_confidence_intervals(pl_model, age_all, n_cov)
+            age_s, ypred, delta, sort_idx = _compute_confidence_intervals(pl_model, n_cov)
             for ig in range(groups):
                 var_id = group_logic[:, ig]
                 y_g = ypred[var_id[sort_idx]]
@@ -345,9 +328,8 @@ def plot_model(model, plot_opts, fig=None):
 
         plotted_model = 'noInteraction'
 
-    # Case 3: full model
+    # --- Case 3: full model ---
     else:
-        # Plot data
         for ig in range(groups):
             h = plot_data_and_fit(group_age[ig], group_data[ig], group_subj[ig],
                                   None, plot_col[ig], ax=ax)
@@ -358,10 +340,10 @@ def plot_model(model, plot_opts, fig=None):
         if groups > 1:
             grp_params = _extract_group_params(model, pl_model, groups, n_cov)
         else:
-            grp_params = {0: pl_model.beta[:model.order + 1]}
+            grp_params = {0: pl_model.beta.values[:model.order + 1]}
 
         if plot_ci:
-            age_s, ypred, delta, sort_idx = _compute_confidence_intervals(pl_model, age_all, n_cov)
+            age_s, ypred, delta, sort_idx = _compute_confidence_intervals(pl_model, n_cov)
             for ig in range(groups):
                 var_id = group_logic[:, ig]
                 y_g = ypred[var_id[sort_idx]]
@@ -398,7 +380,6 @@ def plot_model(model, plot_opts, fig=None):
     ax.set_xlabel(plot_opts.get('x_label', 'age'))
     ax.set_ylabel(plot_opts.get('y_label', 'data'))
 
-    # Legend
     leg_txt = plot_opts.get('leg_txt')
     valid_handles = [h for h in handles if h is not None]
     if leg_txt and valid_handles:
@@ -412,21 +393,17 @@ def plot_model(model, plot_opts, fig=None):
 
 def plot_residuals(model, fig=None):
     """
-    Create a residual normal probability plot.
-
-    Port of plotResiduals.m.
+    Create a residual normal probability plot (QQ plot).
 
     Parameters
     ----------
     model : EstimatedModel
-        Fitted model.
     fig : matplotlib Figure or None
-        If None, creates a new figure.
 
     Returns
     -------
     fig : matplotlib Figure
-    residuals : np.ndarray
+    residuals : pd.Series
     """
     if fig is None:
         fig, ax = plt.subplots(1, 1, figsize=(6, 4))
@@ -434,11 +411,11 @@ def plot_residuals(model, fig=None):
         ax = fig.gca()
 
     # Compute residuals: predicted - observed
-    pred = model.design_matrix @ model.beta
-    residuals = pred - model.input.data
+    pred = model.design_matrix.values @ model.beta.values
+    observed = model.input.df['data'].values
+    residuals = pd.Series(pred - observed, name='residuals')
 
-    # Normal probability plot (QQ plot)
-    stats.probplot(residuals, dist="norm", plot=ax)
+    stats.probplot(residuals.values, dist="norm", plot=ax)
     ax.set_title('Normal Probability Plot of Residuals')
 
     return fig, residuals

@@ -3,13 +3,14 @@ Mixed Models Trajectories - Python port
 ========================================
 
 A toolbox for analyzing longitudinal developmental data using
-mixed-effects regression models.
+mixed-effects regression models. All data flows through pandas
+DataFrames and Series.
 
 Ported from MATLAB by: Original MATLAB code by Daniela Zoeller & Kadir Mutlu
 (Medical Image Processing Lab, EPFL/UniGe)
 """
 
-from .estimate_model import estimate_model, EstimatedModel
+from .estimate_model import estimate_model, EstimatedModel, ModelInput, ModelStats
 from .fit_opt_model import fit_opt_model
 from .likelihood_ratio_test import likelihood_ratio_test
 from .fdr_correct import fdr_correct

@@ -2,15 +2,16 @@
 main_mat_example.py - Port of main_mat_example.m
 
 Example script for fitting mixed-effect model trajectories
-using data from a .mat file.
+using data from a CSV file (FreeSurfer volumes).
+
+Loads data into a pandas DataFrame, then uses column names throughout.
 """
 
 import numpy as np
-import scipy.io as sio
+import pandas as pd
 import matplotlib
 matplotlib.use('Agg')  # non-interactive backend; remove this line for interactive use
 import matplotlib.pyplot as plt
-import pandas as pd
 
 from mixed_models import (
     fit_opt_model,
@@ -35,29 +36,31 @@ plt.rcParams.update({
 # Set up all necessary options here
 # =========================================================================
 
-# --- Load .mat file ---
-df= pd.read_csv('all_fs_volumes.csv')
+# --- Load CSV file into a DataFrame ---
+df = pd.read_csv('all_fs_volumes.csv')
 print(df.head())
-data = {'data': df.iloc[:, 8:].to_dict(orient='list')}
-data_array = np.array(list(data['data'].values()), dtype=float)
 
-input_data = {
-    'subj_id': df['Subject_ID'],
-    'age': df['Age'].astype(float),
-    'grouping': df['Diagnosis_bin'].astype(float),  # 0/1 for 2 groups
-    'data': data_array,
-    'cov': df['Gender_bin'].astype(float), # Assign more covariates here *AARON
-}
+# Rename columns to the names expected by fit_opt_model
+df = df.rename(columns={
+    'Subject_ID': 'subj_id',
+    'Age': 'age',
+})
+
+# Response columns are all volume columns (from column 8 onward in the original CSV)
+response_cols = list(df.columns[8:])
+
+# Demean covariates
+df['Gender_bin'] = df['Gender_bin'] - df['Gender_bin'].mean()
 
 # --- Model estimation options ---
 opts = {
     'orders': [0, 1, 2, 3],
     'm_type': 'slope',
+    'alpha': 0.05,
+    'response_cols': response_cols,
+    'group_col': 'Diagnosis_bin',
+    'cov_cols': ['Gender_bin'],  # Assign more covariates here *AARON
 }
-
-# Vertex IDs (columns of lh_thickness to analyze)
-vert_id = [1, 2]
-opts['vert_id'] = vert_id
 
 # --- Model plotting options ---
 out_dir = './results_mat_fdrcorr'
@@ -69,7 +72,8 @@ plot_opts = {
     'y_label': 'cortical thickness',
     'plot_ci': True,
     'plot_type': 'redInter',
-    'fig_size': (7.3, 4.3),  # approximate MATLAB [440 488 525 310] in inches
+    'fig_size': (7.3, 4.3),
+    'n_cov': 1,
 }
 
 
@@ -77,18 +81,13 @@ plot_opts = {
 # Execute
 # =========================================================================
 
-# --- Run model fitting ---
-opts['model_names'] = [str(v) for v in vert_id]
-opts['alpha'] = 0.05
-
-out_model_vect = fit_opt_model(input_data, opts)
+out_model_vect = fit_opt_model(df, opts)
 out_model_vect_corr = fdr_correct(out_model_vect, opts['alpha'])
 
-# --- Plot and save ---
-plot_opts['n_cov'] = 1  # sex covariate
-plot_models_and_save_results(out_model_vect_corr, plot_opts, save_results, out_dir)
+result_table = plot_models_and_save_results(out_model_vect_corr, plot_opts, save_results, out_dir)
+print("\nResult table:")
+print(result_table)
 
-# --- Effect sizes ---
 effect_size_group = group_calculation_effect(out_model_vect)
 print("\nGroup Effect Sizes:")
 print(effect_size_group)

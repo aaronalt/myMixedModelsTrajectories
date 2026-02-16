@@ -4,6 +4,8 @@ main_excel_example_glm.py - Port of main_excel_example_glm.m
 Example script for fitting GLM trajectories (no random effects)
 using data from an Excel file. Suitable for cross-sectional data
 without repeated measurements.
+
+The input is a pandas DataFrame — columns are referenced by name, not index.
 """
 
 import numpy as np
@@ -35,19 +37,32 @@ plt.rcParams.update({
 # Set up all necessary options here
 # =========================================================================
 
-# --- Input data options ---
+# --- Read Excel file into a DataFrame ---
 input_data_file = 'exampleData.xlsx'
+df = pd.read_excel(input_data_file)
 
-col_subj_id = 0
-col_age = 1
-col_grouping = 2
-col_data = [4, 5, 6, 7]
-col_cov = [3]
+# Rename required columns
+df = df.rename(columns={
+    df.columns[0]: 'subj_id',
+    df.columns[1]: 'age',
+})
+
+group_col = df.columns[2]
+cov_cols = [df.columns[3]]
+response_cols = list(df.columns[4:8])
+
+# Demean covariates
+for c in cov_cols:
+    df[c] = df[c] - df[c].mean()
 
 # --- Model estimation options ---
 opts = {
     'orders': [0, 1, 2, 3],
-    'm_type': 'glm',  # GLM: no random effects
+    'm_type': 'glm',              # GLM: no random effects
+    'alpha': 0.05,
+    'response_cols': response_cols,
+    'group_col': group_col,
+    'cov_cols': cov_cols,
 }
 
 # --- Model plotting options ---
@@ -60,6 +75,7 @@ plot_opts = {
     'y_label': 'cortical volume',
     'plot_ci': True,
     'plot_type': 'redInter',
+    'n_cov': len(cov_cols),
 }
 
 
@@ -67,34 +83,13 @@ plot_opts = {
 # Execute
 # =========================================================================
 
-# --- Read Excel file ---
-df = pd.read_excel(input_data_file)
-col_names = list(df.columns)
-data_in = df.values
-
-input_data = {
-    'subj_id': data_in[:, col_subj_id],
-    'age': data_in[:, col_age].astype(float),
-    'grouping': data_in[:, col_grouping].astype(float),
-    'data': data_in[:, col_data].astype(float),
-    'cov': data_in[:, col_cov].astype(float) if col_cov else None,
-}
-
-if input_data['cov'] is not None:
-    input_data['cov'] = input_data['cov'] - np.mean(input_data['cov'], axis=0)
-
-# --- Run model fitting ---
-opts['model_names'] = [col_names[c] for c in col_data]
-opts['alpha'] = 0.05
-
-out_model_vect = fit_opt_model(input_data, opts)
+out_model_vect = fit_opt_model(df, opts)
 out_model_vect_corr = fdr_correct(out_model_vect, opts['alpha'])
 
-# --- Plot and save ---
-plot_opts['n_cov'] = len(col_cov) if col_cov else 0
-plot_models_and_save_results(out_model_vect, plot_opts, save_results, out_dir)
+result_table = plot_models_and_save_results(out_model_vect_corr, plot_opts, save_results, out_dir)
+print("\nResult table:")
+print(result_table)
 
-# --- Effect sizes ---
 effect_size_group = group_calculation_effect(out_model_vect)
 print("\nGroup Effect Sizes:")
 print(effect_size_group)

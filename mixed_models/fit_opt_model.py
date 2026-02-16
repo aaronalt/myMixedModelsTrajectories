@@ -4,98 +4,107 @@ fit_opt_model.py - Port of fitOptModel.m
 Fits mixed-effect models of increasing orders and selects the best model
 according to BIC. Tests group and interaction effects with likelihood
 ratio tests.
+
+Input data is passed as a pandas DataFrame.
 """
 
 import numpy as np
+import pandas as pd
 from .estimate_model import estimate_model, EstimatedModel
 from .likelihood_ratio_test import likelihood_ratio_test
 
 
-def fit_opt_model(input_data, opts):
+def fit_opt_model(input_df, opts):
     """
-    Fit optimal mixed-effect models for each data column.
+    Fit optimal mixed-effect models for each response column.
 
     Parameters
     ----------
-    input_data : dict
-        Dictionary with keys:
-        - 'subj_id': array of subject IDs
-        - 'age': array of ages
-        - 'grouping': grouping variable (None or array)
-        - 'data': matrix (#obs x #models) of response variables
-        - 'cov': covariate matrix or None
+    input_df : pd.DataFrame
+        Long-format DataFrame with columns:
+        - 'subj_id': subject identifiers
+        - 'age': age / time variable
+        - one or more response columns (specified by opts['response_cols'])
+        - optional grouping column(s) (specified by opts['group_col'])
+        - optional covariate column(s) (specified by opts['cov_cols'])
     opts : dict
         Options with keys:
         - 'orders': list of model orders to test (e.g. [0,1,2,3])
         - 'm_type': 'intercept', 'slope', or 'glm'
         - 'alpha': significance level (default 0.05)
-        - 'vert_id': column indices of data to analyze (default: all)
-        - 'model_names': list of model names (default: column indices)
+        - 'response_cols': list of column names to model as response variables
+        - 'group_col': str or list of str, grouping column name(s) (default None)
+        - 'cov_cols': list of str, covariate column names (default [])
+        - 'model_names': list of display names (default: response_cols)
 
     Returns
     -------
     list of EstimatedModel
         Vector of fitted optimal models.
     """
-    # Defaults
     alpha = opts.get('alpha', 0.05)
     m_type = opts.get('m_type', 'intercept')
     orders = opts['orders']
-    # data = np.asarray(input_data['data'], dtype=float)
-    data = input_data['data']
-    if data.ndim == 1:
-        data = data.reshape(-1, 1)
 
-    vert_id = opts.get('vert_id', list(range(data.shape[1])))
-    model_names = opts.get('model_names', [str(v) for v in vert_id])
+    response_cols = opts['response_cols']
+    model_names = opts.get('model_names', response_cols)
 
-    # Center covariates
-    cov = input_data.get('cov')
-    if cov is not None and len(cov) > 0:
-        cov = np.asarray(cov, dtype=float)
-        if cov.ndim == 1:
-            cov = cov.reshape(-1, 1)
-        cov = cov - np.mean(cov, axis=0)
+    # Grouping columns
+    group_col = opts.get('group_col')
+    if group_col is None:
+        group_col_list = []
+    elif isinstance(group_col, str):
+        group_col_list = [group_col]
+    else:
+        group_col_list = list(group_col)
+
+    # Covariate columns
+    cov_cols = opts.get('cov_cols', [])
+
+    # Extract arrays from DataFrame
+    subj_id = input_df['subj_id'].values
+    age = input_df['age'].values.astype(float)
+
+    if group_col_list:
+        grouping = input_df[group_col_list].values.astype(float)
+    else:
+        grouping = None
+
+    if cov_cols:
+        cov = input_df[cov_cols].values.astype(float)
+        # Center covariates
+        cov = cov - cov.mean(axis=0)
     else:
         cov = None
 
-    subj_id = np.asarray(input_data['subj_id']).flatten()
-    age = np.asarray(input_data['age'], dtype=float).flatten()
-    grouping = input_data.get('grouping')
-    if grouping is not None:
-        grouping = np.asarray(grouping, dtype=float)
-        if grouping.ndim == 1:
-            grouping = grouping.reshape(-1, 1)
-
-    n_models = len(vert_id)
-    print(f'n_models: {n_models}')
+    n_models = len(response_cols)
     out_model_vect = [None] * n_models
 
     for im in range(n_models):
-        iv = vert_id[im]
-        print(f"\nModel {iv} : ", end="")
-        data_vect = data[:, iv]
-        print(f'data_vect: {data_vect.shape}')
+        col = response_cols[im]
+        print(f"\nModel '{col}' : ", end="")
+        data_vect = input_df[col].values.astype(float)
+
         # Handle missing data
-        if np.any(np.isnan(data_vect)):
-            print("Warning: data vector has NaN values, running without missing data points")
-        data_id = ~np.isnan(data_vect)
+        valid_mask = ~np.isnan(data_vect)
+        if not valid_mask.all():
+            print("Warning: NaN values found, running without missing data points")
 
         # Skip if all zeros
-        if not np.any(data_vect[data_id]):
+        if not np.any(data_vect[valid_mask]):
             out_model_vect[im] = EstimatedModel(
-                input=None, order=0, design_matrix=None,
-                design_vars=[], beta=None, rand_cov=None, stats=None,
+                input=None, order=0, design_matrix=pd.DataFrame(),
+                beta=pd.Series(dtype=float), rand_cov=None, stats=None,
                 m_name=model_names[im],
             )
             continue
 
-        # Subset data
-        sid = subj_id[data_id]
-        grp = grouping[data_id] if grouping is not None else None
-        ag = age[data_id]
-        cv = cov[data_id] if cov is not None else None
-        dv = data_vect[data_id]
+        # Subset to valid observations
+        sid = subj_id[valid_mask]
+        grp = grouping[valid_mask] if grouping is not None else None
+        ag = age[valid_mask]
+        cv = cov[valid_mask] if cov is not None else None
+        dv = data_vect[valid_mask]
 
         # Fit models of increasing order, select best by BIC
         for io_idx, io in enumerate(orders):
@@ -124,8 +133,8 @@ def fit_opt_model(input_data, opts):
         print(f"\nFinal model order: {out_model_vect[im].order}")
 
         # Test group and interaction effects if >1 group
-        n_unique_groups = len(np.unique(grouping)) if grouping is not None else 1
-        if n_unique_groups > 1:
+        has_groups = grouping is not None and len(np.unique(grouping[valid_mask])) > 1
+        if has_groups:
             # Likelihood ratio test for significant group effect
             est_opts_no_group = {
                 'm_order': out_model_vect[im].order,

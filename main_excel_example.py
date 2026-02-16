@@ -3,6 +3,8 @@ main_excel_example.py - Port of main_excel_example.m
 
 Example script for fitting mixed-effect model trajectories
 using data from an Excel file.
+
+The input is a pandas DataFrame — columns are referenced by name, not index.
 """
 
 import numpy as np
@@ -34,22 +36,43 @@ plt.rcParams.update({
 # Set up all necessary options here (input file, output directory, etc.)
 # =========================================================================
 
-# --- Input data options ---
+# --- Read Excel file into a DataFrame ---
 input_data_file = 'exampleData.xlsx'
+df = pd.read_excel(input_data_file)
 
-col_subj_id = 0    # column index in Excel file with subject IDs
-col_age = 1         # column index with age
-col_grouping = 2    # column index for grouping (0/1 values)
-                    # Set to None if you have only 1 group
-                    # 1 column for 2 groups
-                    # 2 columns for 3 groups
-col_data = [4, 5, 6, 7]  # column indices with your data
-col_cov = [3]       # column indices with covariates (can be empty list)
+print(f"Loaded {len(df)} rows from {input_data_file}")
+print(f"Columns: {list(df.columns)}")
+print(df.head())
+
+# --- Map your column names ---
+# Rename columns to the names expected by fit_opt_model:
+#   'subj_id' and 'age' are required.
+#   Grouping and covariate columns keep their original names.
+df = df.rename(columns={
+    df.columns[0]: 'subj_id',   # first column = subject IDs
+    df.columns[1]: 'age',       # second column = age
+})
+
+# Column names for grouping, covariates, and response variables
+group_col = df.columns[2]                # e.g. 'diagnosis' (0/1 for 2 groups)
+                                          # Set to None if you have only 1 group
+                                          # Pass a list of 2 columns for 3 groups
+cov_cols = [df.columns[3]]               # e.g. ['sex']
+response_cols = list(df.columns[4:8])    # e.g. ['vol_1', 'vol_2', 'vol_3', 'vol_4']
+
+# Demean covariates in-place
+for c in cov_cols:
+    df[c] = df[c] - df[c].mean()
 
 # --- Model estimation options ---
 opts = {
-    'orders': [0, 1, 2, 3],  # model orders: 0=constant, 1=linear, 2=quadratic, 3=cubic
-    'm_type': 'slope',        # 'intercept', 'slope' (recommended), or 'glm'
+    'orders': [0, 1, 2, 3],      # 0=constant, 1=linear, 2=quadratic, 3=cubic
+    'm_type': 'slope',            # 'intercept', 'slope' (recommended), or 'glm'
+    'alpha': 0.05,
+    'response_cols': response_cols,
+    'group_col': group_col,
+    'cov_cols': cov_cols,
+    'model_names': response_cols,  # display names (default = column names)
 }
 
 # --- Model plotting options ---
@@ -62,9 +85,7 @@ plot_opts = {
     'y_label': 'cortical volume',
     'plot_ci': True,                   # plot confidence intervals
     'plot_type': 'redInter',           # 'full', 'redInter', or 'redGrp'
-    # 'plot_col': [np.array([0.4, 0.76, 0.65]),  # custom colors (optional)
-    #              np.array([0.99, 0.55, 0.38]),
-    #              np.array([0.55, 0.63, 0.80])],
+    'n_cov': len(cov_cols),
 }
 
 
@@ -72,42 +93,18 @@ plot_opts = {
 # Execute the model estimation and plot/save results
 # =========================================================================
 
-# --- Read Excel file ---
-df = pd.read_excel(input_data_file)
-print(f"Loaded {len(df)} rows from {input_data_file}")
-print(f"Columns: {list(df.columns)}")
-
-# --- Prepare input data ---
-data_in = df.values  # numeric data
-col_names = list(df.columns)
-
-input_data = {
-    'subj_id': data_in[:, col_subj_id],
-    'age': data_in[:, col_age].astype(float),
-    'grouping': data_in[:, col_grouping].astype(float) if col_grouping is not None else None,
-    'data': data_in[:, col_data].astype(float),
-    'cov': data_in[:, col_cov].astype(float) if col_cov else None,
-}
-
-# Demean covariates
-if input_data['cov'] is not None:
-    input_data['cov'] = input_data['cov'] - np.mean(input_data['cov'], axis=0)
-
-# --- Run model fitting ---
-opts['model_names'] = [col_names[c] for c in col_data]
-opts['alpha'] = 0.05
-
-# Fit models
-out_model_vect = fit_opt_model(input_data, opts)
+# Fit models — pass the DataFrame directly
+out_model_vect = fit_opt_model(df, opts)
 
 # Correct for multiple comparisons using FDR
 out_model_vect_corr = fdr_correct(out_model_vect, opts['alpha'])
 
-# --- Plot and save models ---
-plot_opts['n_cov'] = len(col_cov) if col_cov else 0
-plot_models_and_save_results(out_model_vect, plot_opts, save_results, out_dir)
+# Plot and save models
+result_table = plot_models_and_save_results(out_model_vect_corr, plot_opts, save_results, out_dir)
+print("\nResult table:")
+print(result_table)
 
-# --- Calculate effect sizes ---
+# Calculate effect sizes
 effect_size_group = group_calculation_effect(out_model_vect)
 print("\nGroup Effect Sizes:")
 print(effect_size_group)
