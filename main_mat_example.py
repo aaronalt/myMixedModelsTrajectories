@@ -12,6 +12,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')  # non-interactive backend; remove this line for interactive use
 import matplotlib.pyplot as plt
+import statsmodels.formula.api as smf
 
 from mixed_models import (
     fit_opt_model,
@@ -44,6 +45,8 @@ print(df.head())
 df = df.rename(columns={
     'Subject_ID': 'subj_id',
     'Age': 'age',
+    'clau_lh_Volume_mm3': 'clau_lh',
+    'clau_rh_Volume_mm3': 'clau_rh',
 })
 
 # Response columns are all volume columns (from column 8 onward in the original CSV)
@@ -69,7 +72,7 @@ save_results = 2
 plot_opts = {
     'leg_txt': ['HC', 'Pat'],
     'x_label': 'age',
-    'y_label': 'cortical thickness',
+    'y_label': 'volume',
     'plot_ci': True,
     'plot_type': 'redInter',
     'fig_size': (7.3, 4.3),
@@ -81,7 +84,11 @@ plot_opts = {
 # Execute
 # =========================================================================
 
-out_model_vect = fit_opt_model(df, opts)
+# out_model_vect = fit_opt_model(df, opts)
+mixed_lm_model = smf.mixedlm("clau_lh ~ age * group * hemisphere",
+                    data=df,
+                    groups=df["subj_id"])
+out_model_vect = mixed_lm_model.fit()
 out_model_vect_corr = fdr_correct(out_model_vect, opts['alpha'])
 
 result_table = plot_models_and_save_results(out_model_vect_corr, plot_opts, save_results, out_dir)
