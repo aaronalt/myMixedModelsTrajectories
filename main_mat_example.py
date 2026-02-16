@@ -10,6 +10,7 @@ import scipy.io as sio
 import matplotlib
 matplotlib.use('Agg')  # non-interactive backend; remove this line for interactive use
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from mixed_models import (
     fit_opt_model,
@@ -35,15 +36,17 @@ plt.rcParams.update({
 # =========================================================================
 
 # --- Load .mat file ---
-input_data_file = 'exampleData.mat'
-mat = sio.loadmat(input_data_file)
+df= pd.read_csv('all_fs_volumes.csv')
+print(df.head())
+data = {'data': df.iloc[:, 8:].to_dict(orient='list')}
+data_array = np.array(list(data['data'].values()), dtype=float)
 
 input_data = {
-    'subj_id': mat['within_subj'].flatten(),
-    'age': mat['age'].flatten().astype(float),
-    'grouping': mat['diagnosis'].astype(float),  # 0/1 for 2 groups
-    'data': mat['lh_thickness'].astype(float),
-    'cov': mat['sex'].astype(float),
+    'subj_id': df['Subject_ID'],
+    'age': df['Age'].astype(float),
+    'grouping': df['Diagnosis_bin'].astype(float),  # 0/1 for 2 groups
+    'data': data_array,
+    'cov': df['Gender_bin'].astype(float), # Assign more covariates here *AARON
 }
 
 # --- Model estimation options ---
@@ -53,7 +56,7 @@ opts = {
 }
 
 # Vertex IDs (columns of lh_thickness to analyze)
-vert_id = [2000, 3600, 4000]
+vert_id = [1, 2]
 opts['vert_id'] = vert_id
 
 # --- Model plotting options ---

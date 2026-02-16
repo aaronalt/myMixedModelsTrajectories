@@ -41,7 +41,8 @@ def fit_opt_model(input_data, opts):
     alpha = opts.get('alpha', 0.05)
     m_type = opts.get('m_type', 'intercept')
     orders = opts['orders']
-    data = np.asarray(input_data['data'], dtype=float)
+    # data = np.asarray(input_data['data'], dtype=float)
+    data = input_data['data']
     if data.ndim == 1:
         data = data.reshape(-1, 1)
 
@@ -67,13 +68,14 @@ def fit_opt_model(input_data, opts):
             grouping = grouping.reshape(-1, 1)
 
     n_models = len(vert_id)
+    print(f'n_models: {n_models}')
     out_model_vect = [None] * n_models
 
     for im in range(n_models):
         iv = vert_id[im]
         print(f"\nModel {iv} : ", end="")
         data_vect = data[:, iv]
-
+        print(f'data_vect: {data_vect.shape}')
         # Handle missing data
         if np.any(np.isnan(data_vect)):
             print("Warning: data vector has NaN values, running without missing data points")
