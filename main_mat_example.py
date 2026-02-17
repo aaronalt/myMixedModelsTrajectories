@@ -50,6 +50,7 @@ df = df.rename(columns={
     'Age': 'age',
     'clau_lh_Volume_mm3': 'clau_lh',
     'clau_rh_Volume_mm3': 'clau_rh',
+    'group': 'Diagnosis_bin'
 })
 
 # Response columns are all volume columns (from column 8 onward in the original CSV)
@@ -91,7 +92,7 @@ plot_opts = {
 # =========================================================================
 
 # out_model_vect = fit_opt_model(df, opts)
-mixed_lm_model = smf.mixedlm("clau_lh ~ age * group * hemisphere",
+mixed_lm_model = smf.mixedlm("clau_lh ~ age * group",
                     data=df,
                     groups=df["subj_id"])
 out_model_vect = mixed_lm_model.fit()
