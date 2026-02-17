@@ -54,11 +54,13 @@ df = df.rename(columns={
 
 # Response columns are all volume columns (from column 8 onward in the original CSV)
 response_cols = list(df.columns[8:])
+df[df.columns[8:]] = df[df.columns[8:]].apply(pd.to_numeric, errors='coerce')
 covariates = [df['Gender_bin'], df['measure_eTIV']]
 print(covariates)
 # Demean covariates
 # df['Gender_bin'] = df['Gender_bin'] - df['Gender_bin'].mean()
-df = compute_residuals(df.columns[8:], covariates)
+residuals, beta = compute_residuals(df[df.columns[8:]], covariates)
+df[df.columns[8:]] = residuals
 # --- Model estimation options ---
 opts = {
     'orders': [0, 1, 2, 3],
