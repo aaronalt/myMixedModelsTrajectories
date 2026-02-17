@@ -10,6 +10,9 @@ Loads data into a pandas DataFrame, then uses column names throughout.
 import numpy as np
 import pandas as pd
 import matplotlib
+
+from functions.compute_residuals import compute_residuals
+
 matplotlib.use('Agg')  # non-interactive backend; remove this line for interactive use
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
@@ -51,10 +54,11 @@ df = df.rename(columns={
 
 # Response columns are all volume columns (from column 8 onward in the original CSV)
 response_cols = list(df.columns[8:])
-
+covariates = [df['Gender_bin'], df['measure_eTIV']]
+print(covariates)
 # Demean covariates
-df['Gender_bin'] = df['Gender_bin'] - df['Gender_bin'].mean()
-
+# df['Gender_bin'] = df['Gender_bin'] - df['Gender_bin'].mean()
+df = compute_residuals(df.columns[8:], covariates)
 # --- Model estimation options ---
 opts = {
     'orders': [0, 1, 2, 3],
