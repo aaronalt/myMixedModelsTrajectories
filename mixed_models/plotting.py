@@ -52,7 +52,8 @@ def plot_data_and_fit(age, data=None, subjects=None, params=None,
             subjects = np.asarray(subjects)
             for sid in np.unique(subjects):
                 mask = subjects == sid
-                ax.plot(age[mask], data[mask], '--', color=plot_color, alpha=0.5, linewidth=0.8)
+                sort_idx = np.argsort(age[mask])
+                ax.plot(age[mask][sort_idx], data[mask][sort_idx], '-', color=plot_color, alpha=0.3, linewidth=0.8)
 
     if params is not None:
         params = np.asarray(params)

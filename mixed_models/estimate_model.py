@@ -239,10 +239,10 @@ def estimate_model(subj_id, grouping, age, cov, data, opts):
         fe_params = np.array(result.fe_params)
         beta = pd.Series(fe_params, index=design_df.columns, name='beta')
         rand_cov = pd.DataFrame(np.array(result.cov_re))
-        residuals = response - result.fittedvalues.values
+        residuals = response - np.asarray(result.fittedvalues)
 
         n_fe = len(fe_params)
-        covb_full = np.array(result.cov_params().iloc[:n_fe, :n_fe])
+        covb_full = np.asarray(result.cov_params())[:n_fe, :n_fe]
         covb_df = pd.DataFrame(covb_full,
                                index=design_df.columns, columns=design_df.columns)
         stats = ModelStats(

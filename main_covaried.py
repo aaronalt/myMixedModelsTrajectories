@@ -1,5 +1,5 @@
 """
-main_mat_example.py - Port of main_mat_example.m
+main_covaried.py - Port of main_mat_example.m
 
 Example script for fitting mixed-effect model trajectories
 using data from a CSV file (FreeSurfer volumes).
@@ -10,6 +10,7 @@ Loads data into a pandas DataFrame, then uses column names throughout.
 import numpy as np
 import pandas as pd
 import matplotlib
+import os
 
 from functions.compute_residuals import compute_residuals
 
@@ -50,40 +51,36 @@ df = df.rename(columns={
     'Age': 'age',
     'clau_lh_Volume_mm3': 'clau_lh',
     'clau_rh_Volume_mm3': 'clau_rh',
-    'group': 'Diagnosis_bin'
+    'Diagnosis_bin': 'grouping'
 })
 
 # Response columns are all volume columns (from column 8 onward in the original CSV)
-response_cols = list(df.columns[8:])
-df[df.columns[8:]] = df[df.columns[8:]].apply(pd.to_numeric, errors='coerce')
-covariates = [df['Gender_bin'], df['measure_eTIV']]
-print(covariates)
-# Demean covariates
-# df['Gender_bin'] = df['Gender_bin'] - df['Gender_bin'].mean()
-residuals, beta = compute_residuals(df[df.columns[8:]], covariates)
-df[df.columns[8:]] = residuals
+response_cols = list(df.columns[8:10])
+df[df.columns[8:10]] = df[df.columns[8:10]].apply(pd.to_numeric, errors='coerce')
 # --- Model estimation options ---
 opts = {
-    'orders': [0, 1, 2, 3],
+    'orders': [1, 2, 3],
     'm_type': 'slope',
     'alpha': 0.05,
     'response_cols': response_cols,
-    'group_col': 'Diagnosis_bin',
-    'cov_cols': ['Gender_bin'],  # Assign more covariates here *AARON
+    'group_col': 'grouping',
+    'cov_cols': ['Gender_bin', 'measure_eTIV'],
 }
 
 # --- Model plotting options ---
-out_dir = './results_mat_fdrcorr'
+out_dir = './results_TIV_sex_covaried'
+if not os.path.exists(out_dir):
+    os.makedirs(out_dir)
 save_results = 2
 
 plot_opts = {
-    'leg_txt': ['HC', 'Pat'],
+    'leg_txt': ['HC', '22q'],
     'x_label': 'age',
-    'y_label': 'volume',
+    'y_label': 'Claustrum Volume',
     'plot_ci': True,
     'plot_type': 'redInter',
-    'fig_size': (7.3, 4.3),
-    'n_cov': 1,
+    'fig_size': (12, 8),
+    'n_cov': 2,
 }
 
 
@@ -91,11 +88,19 @@ plot_opts = {
 # Execute
 # =========================================================================
 
-# out_model_vect = fit_opt_model(df, opts)
-mixed_lm_model = smf.mixedlm("clau_lh ~ age * group",
-                    data=df,
-                    groups=df["subj_id"])
-out_model_vect = mixed_lm_model.fit()
+df = df.dropna(subset=['grouping', 'Gender_bin', 'measure_eTIV', 'age']).reset_index(drop=True)
+df = df[~((df['age'] < 25) & (df['clau_lh'] < 500))].reset_index(drop=True)
+df = df[df['age'] <= 35].reset_index(drop=True)
+out_model_vect = fit_opt_model(df, opts)
+
+# Print uncorrected p-values
+print("\nUncorrected p-values:")
+for m in out_model_vect:
+    if m is not None:
+        gp = m.group_effect['p'] if m.group_effect else None
+        ip = m.inter_effect['p'] if m.inter_effect else None
+        print(f"  {m.m_name}: group p={gp}, interaction p={ip}")
+
 out_model_vect_corr = fdr_correct(out_model_vect, opts['alpha'])
 
 result_table = plot_models_and_save_results(out_model_vect_corr, plot_opts, save_results, out_dir)
