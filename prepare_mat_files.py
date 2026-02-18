@@ -74,10 +74,10 @@ df['delta_clau_rh'] = df['clau_rh'] - df['mean_clau_rh']
 # 4. Identify brain volume columns (exclude demographics, eTIV, Mask, Seg)
 # =========================================================================
 
-exclude_patterns = ['eTIV', 'MaskVol', 'BrainSeg']
+# Only keep individual parcellations (subcort_* and cort_*),
+# exclude all global/aggregate measure_* columns
 brain_cols = [c for c in df.columns
-              if (c.startswith('measure_') or c.startswith('subcort_') or c.startswith('cort_'))
-              and not any(pat in c for pat in exclude_patterns)]
+              if c.startswith('subcort_') or c.startswith('cort_')]
 
 # Coerce all brain volume columns to numeric
 for col in brain_cols:
