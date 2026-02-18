@@ -124,41 +124,44 @@ df['delta_clau_rh_resid'] = df['clau_rh_resid'] - df['mean_clau_rh_resid']
 out_dir = './mat_files'
 os.makedirs(out_dir, exist_ok=True)
 
+# Helper: ensure column vector (Nx1) for MATLAB
+def col(arr):
+    return np.asarray(arr).reshape(-1, 1)
+
 # --- demographics.mat ---
 savemat(os.path.join(out_dir, 'demographics.mat'), {
-    'subj_id': df['subj_id'].values,
-    'age': df['age'].values,
-    'mean_age': df['mean_age'].values,
-    'delta_age': df['delta_age'].values,
-    'sex': df['Gender_bin'].values,
-    'group': df['grouping'].values,
-    'diagnosis': np.array(df['Diagnosis'].astype(str).tolist(), dtype=object),
+    'subj_id': col(df['subj_id']),
+    'age': col(df['age']),
+    'mean_age': col(df['mean_age']),
+    'delta_age': col(df['delta_age']),
+    'sex': col(df['Gender_bin']),
+    'group': col(df['grouping']),
+    'diagnosis': np.array(df['Diagnosis'].astype(str).tolist(), dtype=object).reshape(-1, 1),
 })
 
 # --- claustrum_volumes.mat ---
 savemat(os.path.join(out_dir, 'claustrum_volumes.mat'), {
-    'subj_id': df['subj_id'].values,
-    'clau_lh': df['clau_lh'].values,
-    'clau_rh': df['clau_rh'].values,
-    'mean_clau_lh': df['mean_clau_lh'].values,
-    'mean_clau_rh': df['mean_clau_rh'].values,
-    'delta_clau_lh': df['delta_clau_lh'].values,
-    'delta_clau_rh': df['delta_clau_rh'].values,
-    'clau_lh_resid': df['clau_lh_resid'].values,
-    'clau_rh_resid': df['clau_rh_resid'].values,
-    'mean_clau_lh_resid': df['mean_clau_lh_resid'].values,
-    'mean_clau_rh_resid': df['mean_clau_rh_resid'].values,
-    'delta_clau_lh_resid': df['delta_clau_lh_resid'].values,
-    'delta_clau_rh_resid': df['delta_clau_rh_resid'].values,
+    'clau_lh': col(df['clau_lh']),
+    'clau_rh': col(df['clau_rh']),
+    'mean_clau_lh': col(df['mean_clau_lh']),
+    'mean_clau_rh': col(df['mean_clau_rh']),
+    'delta_clau_lh': col(df['delta_clau_lh']),
+    'delta_clau_rh': col(df['delta_clau_rh']),
+    'clau_lh_resid': col(df['clau_lh_resid']),
+    'clau_rh_resid': col(df['clau_rh_resid']),
+    'mean_clau_lh_resid': col(df['mean_clau_lh_resid']),
+    'mean_clau_rh_resid': col(df['mean_clau_rh_resid']),
+    'delta_clau_lh_resid': col(df['delta_clau_lh_resid']),
+    'delta_clau_rh_resid': col(df['delta_clau_rh_resid']),
 })
 
 # --- brain_volumes.mat (residualized, no eTIV/Mask/Seg columns) ---
-# Clean column names for MATLAB (replace hyphens)
+# Single NxR matrix + col_names cell array
 clean_names = [c.replace('-', '_') for c in brain_cols]
-brain_dict = {name: brain_residualized[:, i] for i, name in enumerate(clean_names)}
-brain_dict['subj_id'] = df['subj_id'].values
-brain_dict['col_names'] = np.array(clean_names, dtype=object)
-savemat(os.path.join(out_dir, 'brain_volumes.mat'), brain_dict)
+savemat(os.path.join(out_dir, 'brain_volumes.mat'), {
+    'volumes': brain_residualized,  # (749 x n_regions)
+    'col_names': np.array(clean_names, dtype=object).reshape(1, -1),
+})
 
 # --- Summary ---
 print(f"\nSaved to {out_dir}/:")
