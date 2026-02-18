@@ -107,7 +107,16 @@ plot_opts = {
 # Execute
 # =========================================================================
 
-df = df[~((df['age'] < 25) & (df['clau_lh'] < 500))].reset_index(drop=True)
+# Remove volumes outside 3 SD
+for col in response_cols:
+    mu, sigma = df[col].mean(), df[col].std()
+    before = len(df)
+    df = df[(df[col] >= mu - 3 * sigma) & (df[col] <= mu + 3 * sigma)]
+    removed = before - len(df)
+    if removed > 0:
+        print(f"  Removed {removed} outliers from {col} (>{3} SD)")
+df = df.reset_index(drop=True)
+
 df = df[df['age'] <= 35].reset_index(drop=True)
 out_model_vect = fit_opt_model(df, opts)
 
