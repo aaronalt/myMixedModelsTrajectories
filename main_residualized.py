@@ -87,7 +87,7 @@ opts = {
 }
 
 # --- Model plotting options ---
-out_dir = './results_TIV_sex_hemi_regressed'
+out_dir = './results_not_regressed'
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 save_results = 2
