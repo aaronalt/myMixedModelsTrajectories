@@ -6,7 +6,7 @@ Cleans the FreeSurfer CSV and exports separate .mat files for MATLAB:
   2. Filter age <= 35, remove outlier (age < 25 & clau_lh < 500)
   3. Sort by subject, then by age within each subject
   4. Compute per-subject means and deltas for age and claustrum volumes
-  5. Regress out eTIV and sex from brain volumes
+  5. Regress out eTIV, sex, and euler_z from brain volumes
   6. Save separate .mat files:
      - demographics.mat
      - claustrum_volumes.mat
@@ -38,9 +38,12 @@ df = df.rename(columns={
 df['clau_lh'] = pd.to_numeric(df['clau_lh'], errors='coerce')
 df['clau_rh'] = pd.to_numeric(df['clau_rh'], errors='coerce')
 
+# Coerce euler_z to numeric
+df['euler_z'] = pd.to_numeric(df['euler_z'], errors='coerce')
+
 # Drop rows missing key columns
 df = df.dropna(subset=['grouping', 'Gender_bin', 'measure_eTIV', 'age',
-                        'clau_lh', 'clau_rh']).reset_index(drop=True)
+                        'clau_lh', 'clau_rh', 'euler_z']).reset_index(drop=True)
 
 # Remove outlier and cap age
 df = df[~((df['age'] < 25) & (df['clau_lh'] < 500))].reset_index(drop=True)
@@ -91,7 +94,7 @@ print(f"After dropping NaN brain volumes: {len(df)} observations")
 # 5. Regress out eTIV and sex from brain volumes
 # =========================================================================
 
-covariates = [df['Gender_bin'].values, df['measure_eTIV'].values]
+covariates = [df['Gender_bin'].values, df['measure_eTIV'].values, df['euler_z'].values]
 brain_data = df[brain_cols].values
 
 original_means = df[brain_cols].mean().values
@@ -137,6 +140,7 @@ savemat(os.path.join(out_dir, 'demographics.mat'), {
     'sex': col(df['Gender_bin']),
     'group': col(df['grouping']),
     'diagnosis': np.array(df['Diagnosis'].astype(str).tolist(), dtype=object).reshape(-1, 1),
+    'euler_z': col(df['euler_z']),
 })
 
 # --- claustrum_volumes.mat ---
