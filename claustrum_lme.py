@@ -4,6 +4,7 @@ import statsmodels.formula.api as smf
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import warnings
 
 plt.rcParams.update({
     'figure.facecolor': 'white',
@@ -12,7 +13,6 @@ plt.rcParams.update({
     'axes.linewidth': 1.5,
 })
 
-all_results = []
 
 for diagnosis in [0, 1]:
     # Load data
@@ -82,71 +82,97 @@ for diagnosis in [0, 1]:
     r2 = m2.fit(reml=True)
     print(r2.summary())
 
-    for name, model in [("TIV-normalized", r1), ("Absolute", r2)]:
-        params = ['C(hemisphere)[T.LH]', 'C(Gender_bin)[T.1.0]', 'Age']
-        for p in params:
-            coef = model.fe_params[p]
-            ci = model.conf_int().loc[p]
-            pval = model.pvalues[p]
-            all_results.append({
-                'group': diagnosis_group,
-                'model': name,
-                'predictor': p,
-                'coef': coef,
-                'ci_lo': ci[0],
-                'ci_hi': ci[1],
-                'pval': pval,
+    # --- Age-binned hemisphere effect ---
+    print("\n" + "=" * 60)
+    print(f"Age-binned hemisphere effect - {diagnosis_group}")
+    print("=" * 60)
+
+    age_bins = [(5, 10), (10, 15), (15, 20), (20, 25), (25, 30), (30, 35)]
+    bin_results = []
+
+    for lo, hi in age_bins:
+        bin_label = f"{lo}-{hi}"
+        win = long[(long['Age'] >= lo) & (long['Age'] < hi)]
+        n_subj = win['Subject_ID'].nunique()
+        n_obs = len(win)
+
+        if n_subj < 10:
+            bin_results.append({
+                'age_bin': bin_label, 'bin_mid': (lo + hi) / 2,
+                'n_subj': n_subj, 'n_obs': n_obs,
+                'coef': np.nan, 'ci_lo': np.nan, 'ci_hi': np.nan, 'pval': np.nan,
+            })
+            continue
+
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                mw = smf.mixedlm(
+                    "clau_norm ~ C(hemisphere) + C(Gender_bin)",
+                    data=win, groups=win["Subject_ID"]
+                ).fit(reml=True)
+            p = 'C(hemisphere)[T.LH]'
+            ci = mw.conf_int().loc[p]
+            bin_results.append({
+                'age_bin': bin_label, 'bin_mid': (lo + hi) / 2,
+                'n_subj': n_subj, 'n_obs': n_obs,
+                'coef': mw.fe_params[p], 'ci_lo': ci[0], 'ci_hi': ci[1],
+                'pval': mw.pvalues[p],
+            })
+        except Exception:
+            bin_results.append({
+                'age_bin': bin_label, 'bin_mid': (lo + hi) / 2,
+                'n_subj': n_subj, 'n_obs': n_obs,
+                'coef': np.nan, 'ci_lo': np.nan, 'ci_hi': np.nan, 'pval': np.nan,
             })
 
-results_df = pd.DataFrame(all_results)
-results_df.to_csv("claustrum_lme_results.csv", index=False)
+    bin_df = pd.DataFrame(bin_results)
+    bin_df['group'] = diagnosis_group
+    bin_df.to_csv(f'claustrum_hemisphere_agebins_{diagnosis_group.replace(" ", "_").lower()}.csv',
+                  index=False)
 
-# =========================================================================
-# Forest plots: HC vs 22q coefficient comparison
-# =========================================================================
-pred_labels = {
-    'C(hemisphere)[T.LH]': 'Hemisphere (LH vs RH)',
-    'C(Gender_bin)[T.1.0]': 'Sex (Male vs Female)',
-    'Age': 'Age',
-}
-group_colors = {'Healthy Control': '#2E86AB', '22q11ds': '#A23B72'}
-group_offsets = {'Healthy Control': -0.15, '22q11ds': 0.15}
+    valid = bin_df.dropna(subset=['coef'])
+    for _, row in valid.iterrows():
+        star = '***' if row['pval'] < 0.001 else '**' if row['pval'] < 0.01 else \
+               '*' if row['pval'] < 0.05 else ''
+        print(f"    {row['age_bin']:>5s} yr (n={row['n_subj']:3.0f}): "
+              f"coef={row['coef']:+.4f}, p={row['pval']:.4f} {star}")
 
-for model_name in ['TIV-normalized', 'Absolute']:
-    sub = results_df[results_df['model'] == model_name]
-    predictors = list(pred_labels.keys())
+    # Plot age-binned results
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 6), height_ratios=[3, 1],
+                                    sharex=True, gridspec_kw={'hspace': 0.08})
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    for grp in ['Healthy Control', '22q11ds']:
-        grp_data = sub[sub['group'] == grp]
-        for i, pred in enumerate(predictors):
-            row = grp_data[grp_data['predictor'] == pred].iloc[0]
-            y = i + group_offsets[grp]
-            color = group_colors[grp]
-            ax.errorbar(row['coef'], y,
-                        xerr=[[row['coef'] - row['ci_lo']],
-                              [row['ci_hi'] - row['coef']]],
-                        fmt='o', color=color, capsize=4, capthick=2,
-                        markersize=8, linewidth=2,
-                        label=grp if i == 0 else None)
-            star = '***' if row['pval'] < 0.001 else '**' if row['pval'] < 0.01 else \
-                   '*' if row['pval'] < 0.05 else ''
-            if star:
-                ax.text(row['ci_hi'] + (row['ci_hi'] - row['ci_lo']) * 0.1, y,
-                        star, va='center', fontsize=11, fontweight='bold', color=color)
+    for _, row in valid.iterrows():
+        color = '#A23B72' if row['pval'] < 0.05 else '#cccccc'
+        ax1.errorbar(row['bin_mid'], row['coef'],
+                     yerr=[[row['coef'] - row['ci_lo']], [row['ci_hi'] - row['coef']]],
+                     fmt='o', color=color, capsize=5, capthick=2,
+                     markersize=9, linewidth=2, zorder=5)
+        star = '***' if row['pval'] < 0.001 else '**' if row['pval'] < 0.01 else \
+               '*' if row['pval'] < 0.05 else ''
+        if star:
+            ax1.text(row['bin_mid'], row['ci_hi'] + 0.005, star,
+                     ha='center', fontsize=11, fontweight='bold', color='#A23B72')
 
-    ax.axvline(0, color='grey', linestyle='--', linewidth=1, alpha=0.7)
-    ax.set_yticks(range(len(predictors)))
-    ax.set_yticklabels([pred_labels[p] for p in predictors], fontsize=11)
-    ax.set_xlabel('Coefficient (95% CI)', fontsize=11)
-    unit = '(TIV-normalized × 1000)' if model_name == 'TIV-normalized' else '(mm³)'
-    ax.set_title(f'LME Coefficients — {model_name} Claustrum {unit}\n'
-                 f'HC vs 22q11DS', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=10, loc='best')
-    ax.grid(axis='x', alpha=0.15)
-    ax.invert_yaxis()
+    ax1.axhline(0, color='grey', linestyle='--', linewidth=1, alpha=0.7)
+    ax1.set_ylabel('Hemisphere coef\n(LH vs RH, TIV-norm)', fontsize=11)
+    ax1.set_title(f'Hemisphere Asymmetry by Age Bin — {diagnosis_group}\n'
+                  f'Pink = p<.05 | Grey = n.s.',
+                  fontsize=12, fontweight='bold')
+    ax1.grid(alpha=0.15)
+
+    ax2.bar(valid['bin_mid'], valid['n_subj'], color='#2E86AB', alpha=0.6, width=4)
+    for _, row in valid.iterrows():
+        ax2.text(row['bin_mid'], row['n_subj'] + 1, f"{int(row['n_subj'])}",
+                 ha='center', va='bottom', fontsize=8, color='#2E86AB', fontweight='bold')
+    ax2.set_xlabel('Age (years)', fontsize=11)
+    ax2.set_ylabel('N subj', fontsize=11)
+    ax2.set_xticks([b['bin_mid'] for b in bin_results])
+    ax2.set_xticklabels([b['age_bin'] for b in bin_results])
+    ax2.grid(alpha=0.15)
+
     plt.tight_layout()
-    fname = f'claustrum_lme_forest_{model_name.lower().replace("-", "_")}.png'
+    fname = f'claustrum_hemisphere_agebins_{diagnosis_group.replace(" ", "_").lower()}.png'
     plt.savefig(fname, dpi=200, bbox_inches='tight')
     plt.close()
-    print(f"Saved: {fname}")
+    print(f"  Saved: {fname}")
