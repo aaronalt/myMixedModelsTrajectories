@@ -26,7 +26,6 @@ print(f"Sex distribution: {df.groupby('Gender')['Subject_ID'].nunique().to_dict(
 
 # df['Gender_bin'] = df['Gender_bin'].map({0.0: 0.0, 1.1: 1.1}).astype('category')
 
-
 def run_lme(outcome, label, data):
     m = smf.mixedlm(
         f"{outcome} ~ C(Gender_bin) + Age",
